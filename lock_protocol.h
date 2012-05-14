@@ -4,6 +4,7 @@
 #define lock_protocol_h
 
 #include "rpc.h"
+#include <pthread.h>
 
 class lock_protocol {
  public:
@@ -17,4 +18,16 @@ class lock_protocol {
   };
 };
 
-#endif 
+class lock {
+ public:
+        enum lkstatus { FREE, BUSY };
+        lock_protocol::lockid_t id;
+        int status;
+        pthread_mutex_t mutex;
+
+        lock(lock_protocol::lockid_t);
+        lock(lock_protocol::lockid_t, int);
+        ~lock() {};
+};
+
+#endif
