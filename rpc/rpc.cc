@@ -556,6 +556,7 @@ rpcs::dispatch(djob_t *j)
 			// if we don't know about this clt_nonce, create a cleanup object
 			if(reply_window_.find(h.clt_nonce) == reply_window_.end()){
 				VERIFY (reply_window_[h.clt_nonce].size() == 0); // create
+                                reply_number[h.clt_nonce] = 0;
 				jsl_log(JSL_DBG_2,
 						"rpcs::dispatch: new client %u xid %d chan %d, total clients %d\n", 
 						h.clt_nonce, h.xid, c->channo(), (int)reply_window_.size());
@@ -656,14 +657,60 @@ rpcs::dispatch(djob_t *j)
 //   INPROGRESS: seen this xid, and still processing it.
 //   DONE: seen this xid, previous reply returned in *b and *sz.
 //   FORGOTTEN: might have seen this xid, but deleted previous reply.
-rpcs::rpcstate_t 
+rpcs::rpcstate_t
 rpcs::checkduplicate_and_update(unsigned int clt_nonce, unsigned int xid,
 		unsigned int xid_rep, char **b, int *sz)
 {
-	ScopedLock rwl(&reply_window_m_);
+        std::map<unsigned int,std::list<reply_t> >::iterator clt;
+        std::list<reply_t>::iterator it;
+
+        ScopedLock rwl(&reply_window_m_);
+        //ScopedLock rnl(&reply_number_m_);
 
         // You fill this in for Lab 1.
-	return NEW;
+        //check whether we are handling it right now.
+        //we have this reply in reply window ?
+        clt = reply_window_.find(clt_nonce);
+        if (xid_rep > reply_number[clt_nonce])
+                reply_number[clt_nonce] = xid_rep;
+        printf("clt[%d]reply size, %lu, xid_rep=%d \n",
+               clt_nonce, clt->second.size(), reply_number[clt_nonce]);
+        for (it = clt->second.begin(); it != clt->second.end(); it++) {
+                if (it->xid == xid) { //we find this in reply window
+                        if (it->cb_present == true) { // we have finished it
+                                *b = it->buf;
+                                *sz = it->sz;
+                                return DONE;
+                        } else { //INPROGRESS
+                                return INPROGRESS;
+                        }
+                }
+        }
+        //we can't find it in the reply window
+        if (xid <= reply_number[clt_nonce]) { //it's not an new request, we forgot it....
+                return FORGOTTEN;
+        } else {
+                //it's an new request, add it into reply window..
+                //but before add new request, clean reply window.
+                it = clt->second.begin();
+                while (it != clt->second.end()) {
+                        if (it->xid < reply_number[clt_nonce]
+                            && it->cb_present == true) {
+                                free(it->buf);
+                                //printf("+++++[%d]request:%d, erase xid:%d, xid_rep:%d\n",
+                                //clt_nonce, xid, it->xid, xid_rep);
+                                it = clt->second.erase(it);
+                        } else
+                                it++;
+                }
+
+                struct reply_t nrep(xid);
+                nrep.buf = NULL;
+                nrep.sz = 0;
+                nrep.cb_present = false;
+                reply_window_[clt_nonce].push_back(nrep);
+                return NEW;
+        }
 }
 
 // rpcs::dispatch calls add_reply when it is sending a reply to an RPC,
@@ -675,24 +722,44 @@ void
 rpcs::add_reply(unsigned int clt_nonce, unsigned int xid,
 		char *b, int sz)
 {
-	ScopedLock rwl(&reply_window_m_);
+        std::map<unsigned int,std::list<reply_t> >::iterator clt;
+        std::list<reply_t>::iterator it;
+
+        ScopedLock rwl(&reply_window_m_);
         // You fill this in for Lab 1.
+        //check whether we have this reply in window
+        clt = reply_window_.find(clt_nonce);
+        for (it = clt->second.begin(); it != clt->second.end(); it++) {
+                if (it->xid == xid) { //we find this reply..
+                        //VERIFY(it->cb_present == false);
+                        it->cb_present = true;
+                        it->sz = sz;
+                        it->buf = b;
+                        return;
+                }
+        }
+        struct reply_t nrep(xid);
+        nrep.buf = b;
+        nrep.sz = sz;
+        nrep.cb_present = true;
+        reply_window_[clt_nonce].push_back(nrep);
 }
 
 void
 rpcs::free_reply_window(void)
 {
-	std::map<unsigned int,std::list<reply_t> >::iterator clt;
-	std::list<reply_t>::iterator it;
+        std::map<unsigned int,std::list<reply_t> >::iterator clt;
+        std::list<reply_t>::iterator it;
 
-	ScopedLock rwl(&reply_window_m_);
-	for (clt = reply_window_.begin(); clt != reply_window_.end(); clt++){
-		for (it = clt->second.begin(); it != clt->second.end(); it++){
-			free((*it).buf);
-		}
-		clt->second.clear();
-	}
-	reply_window_.clear();
+        ScopedLock rwl(&reply_window_m_);
+        for (clt = reply_window_.begin(); clt != reply_window_.end(); clt++){
+                for (it = clt->second.begin(); it != clt->second.end(); it++){
+                        free((*it).buf);
+                }
+                clt->second.clear();
+        }
+        reply_window_.clear();
+        reply_number.clear();
 }
 
 // rpc handler

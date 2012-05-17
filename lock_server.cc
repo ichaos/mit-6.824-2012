@@ -31,7 +31,7 @@ lock_protocol::status
 lock_server::stat(int clt, lock_protocol::lockid_t lid, int &r)
 {
         lock_protocol::status ret = lock_protocol::OK;
-        printf("stat request from clt %d\n", clt);
+        //printf("stat request from clt %d\n", clt);
         r = nacquire;
         return ret;
 }
@@ -42,6 +42,7 @@ lock_server::acquire(int clt, lock_protocol::lockid_t lid, int &r)
         lock_protocol::status ret = lock_protocol::OK;
         std::map<lock_protocol::lockid_t, lock *>::iterator it;
         it = lockmap.find(lid);
+        //try to get lock
         if (it != lockmap.end()) {
                 if (pthread_mutex_lock(&it->second->mutex) == 0) {
                         it->second->status = lock::BUSY;
@@ -51,7 +52,6 @@ lock_server::acquire(int clt, lock_protocol::lockid_t lid, int &r)
                         return lock_protocol::IOERR;
                 }
         } else {
-                //try to get lock
                 if (pthread_mutex_lock(&mutex) == 0) {
                         it = lockmap.find(lid);
                         if (it == lockmap.end()) { //add a new lock
