@@ -89,5 +89,17 @@ yfs_client::getdir(inum inum, dirinfo &din)
   return r;
 }
 
+int yfs_client::get(inum inum, std::string &buf)
+{
+        int r = OK;
+
+        printf("getdir %016llx\n", inum);
+        if (ec->get(inum, buf) != extent_protocol::OK) {
+                r = IOERR;
+        }
+
+        return r;
+}
+
 
 

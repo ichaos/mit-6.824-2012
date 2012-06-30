@@ -43,6 +43,8 @@ class yfs_client {
 
   int getfile(inum, fileinfo &);
   int getdir(inum, dirinfo &);
+
+  int get(inum, std::string &);
 };
 
 #endif 

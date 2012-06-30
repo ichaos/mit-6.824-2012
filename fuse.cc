@@ -320,7 +320,7 @@ fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 {
   yfs_client::inum inum = ino; // req->in.h.nodeid;
   struct dirbuf b;
-
+  std::string buf;
   printf("fuseserver_readdir\n");
 
   if(!yfs->isdir(inum)){
@@ -332,7 +332,14 @@ fuseserver_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 
 
   // You fill this in for Lab 2
-
+  /*
+   * My directory content format:
+   * <name:ino><name:ino>...<name:ino>
+   */
+  if (!yfs->get(inum, buf)) {
+          fuse_reply_err(req, ENOENT);
+          return;
+  }
 
   reply_buf_limited(req, b.p, b.size, off, size);
   free(b.p);

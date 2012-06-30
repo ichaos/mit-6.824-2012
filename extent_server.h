@@ -9,6 +9,16 @@
 
 class extent_server {
 
+        struct record {
+                //record();
+                //~record();
+                std::string buf;
+                extent_protocol::attr a;
+        };
+
+        std::map<extent_protocol::extentid_t, record> records;
+        pthread_mutex_t mutex;
+
  public:
   extent_server();
 
